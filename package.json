@@ -1,0 +1,43 @@
+{
+  "name": "ispconfig-mcp",
+  "version": "0.1.0",
+  "description": "MCP (Model Context Protocol) server for ISPConfig 3 — manage DNS, mail, sites, databases, and more via AI assistants",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "ispconfig-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ispconfig",
+    "ispconfig3",
+    "hosting",
+    "dns",
+    "mail",
+    "server-management",
+    "ai"
+  ],
+  "author": "DayZAnder",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DayZAnder/ispconfig-mcp.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0"
+  }
+}
