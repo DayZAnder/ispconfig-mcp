@@ -594,4 +594,149 @@ export function registerMigrationTools(server: McpServer, source: ISPConfigClien
       return { content: [{ type: "text", text: commands.join("\n") }] };
     },
   );
+
+  // ──────────────────────────────────────────────
+  // VERIFY — compare source vs destination
+  // ──────────────────────────────────────────────
+
+  server.tool(
+    "migrate_verify",
+    "Compare source and destination ISPConfig instances after migration. Shows what exists on source but is missing on destination, and flags any config mismatches. Requires ISPCONFIG_DEST_URL.",
+    {
+      scope: z.enum(["all", "dns", "mail", "sites"]).describe("What to verify"),
+    },
+    async ({ scope }) => {
+      if (!dest) {
+        return { content: [{ type: "text", text: "ERROR: No destination configured. Set ISPCONFIG_DEST_URL to use migrate_verify." }] };
+      }
+
+      const lines: string[] = ["# Migration Verification Report", ""];
+      let totalMissing = 0;
+      let totalMismatch = 0;
+      let totalOk = 0;
+
+      if (scope === "all" || scope === "dns") {
+        lines.push("## DNS Zones");
+        try {
+          const srcZones = await source.call("dns_zone_get_by_user", { client_id: 0, server_id: 0 });
+          const destZones = await dest.call("dns_zone_get_by_user", { client_id: 0, server_id: 0 });
+
+          const srcList = Array.isArray(srcZones) ? srcZones as Record<string, unknown>[] : [];
+          const destList = Array.isArray(destZones) ? destZones as Record<string, unknown>[] : [];
+          const destOrigins = new Set(destList.map(z => String(z.origin)));
+
+          for (const sz of srcList) {
+            const origin = String(sz.origin);
+            if (destOrigins.has(origin)) {
+              lines.push(`  OK  ${origin}`);
+              totalOk++;
+            } else {
+              lines.push(`  MISSING  ${origin}`);
+              totalMissing++;
+            }
+          }
+
+          // Check for extra zones on dest not on source
+          const srcOrigins = new Set(srcList.map(z => String(z.origin)));
+          for (const dz of destList) {
+            if (!srcOrigins.has(String(dz.origin))) {
+              lines.push(`  EXTRA (dest only)  ${dz.origin}`);
+            }
+          }
+
+          lines.push(`  Summary: ${srcList.length} source, ${destList.length} dest, ${totalOk} matched, ${totalMissing} missing`);
+        } catch (err) {
+          lines.push(`  Error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        lines.push("");
+      }
+
+      if (scope === "all" || scope === "mail") {
+        lines.push("## Mail Domains");
+        let mailOk = 0, mailMissing = 0;
+        try {
+          const srcDomains = await source.call("mail_domain_get_by_user", { client_id: 0, server_id: 0 });
+          const destDomains = await dest.call("mail_domain_get_by_user", { client_id: 0, server_id: 0 });
+
+          const srcList = Array.isArray(srcDomains) ? srcDomains as Record<string, unknown>[] : [];
+          const destList = Array.isArray(destDomains) ? destDomains as Record<string, unknown>[] : [];
+          const destNames = new Set(destList.map(d => String(d.domain)));
+
+          for (const sd of srcList) {
+            const domain = String(sd.domain);
+            if (destNames.has(domain)) {
+              // Check mailbox counts
+              let srcUserCount = 0, destUserCount = 0;
+              try {
+                const srcUsers = await source.call("mail_user_get_by_domain", { domain });
+                srcUserCount = Array.isArray(srcUsers) ? srcUsers.length : 0;
+              } catch { /* ignore */ }
+              try {
+                const destUsers = await dest.call("mail_user_get_by_domain", { domain });
+                destUserCount = Array.isArray(destUsers) ? destUsers.length : 0;
+              } catch { /* ignore */ }
+
+              if (srcUserCount === destUserCount) {
+                lines.push(`  OK  ${domain} (${srcUserCount} mailboxes)`);
+                mailOk++;
+                totalOk++;
+              } else {
+                lines.push(`  MISMATCH  ${domain} — source: ${srcUserCount} mailboxes, dest: ${destUserCount}`);
+                mailMissing++;
+                totalMismatch++;
+              }
+            } else {
+              lines.push(`  MISSING  ${domain}`);
+              mailMissing++;
+              totalMissing++;
+            }
+          }
+
+          lines.push(`  Summary: ${srcList.length} source, ${destList.length} dest, ${mailOk} matched, ${mailMissing} issues`);
+        } catch (err) {
+          lines.push(`  Error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        lines.push("");
+      }
+
+      if (scope === "all" || scope === "sites") {
+        lines.push("## Web Domains");
+        let siteOk = 0, siteMissing = 0;
+        try {
+          const srcSites = await source.call("sites_web_domain_get_by_user", { client_id: 0, server_id: 0 });
+          const destSites = await dest.call("sites_web_domain_get_by_user", { client_id: 0, server_id: 0 });
+
+          const srcList = Array.isArray(srcSites) ? srcSites as Record<string, unknown>[] : [];
+          const destList = Array.isArray(destSites) ? destSites as Record<string, unknown>[] : [];
+          const destNames = new Set(destList.map(s => String(s.domain)));
+
+          for (const ss of srcList) {
+            const domain = String(ss.domain);
+            if (destNames.has(domain)) {
+              lines.push(`  OK  ${domain}`);
+              siteOk++;
+              totalOk++;
+            } else {
+              lines.push(`  MISSING  ${domain}`);
+              siteMissing++;
+              totalMissing++;
+            }
+          }
+
+          lines.push(`  Summary: ${srcList.length} source, ${destList.length} dest, ${siteOk} matched, ${siteMissing} missing`);
+        } catch (err) {
+          lines.push(`  Error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        lines.push("");
+      }
+
+      lines.push("---");
+      lines.push(`Total: ${totalOk} OK, ${totalMissing} missing, ${totalMismatch} mismatched`);
+      if (totalMissing === 0 && totalMismatch === 0) {
+        lines.push("All source configs found on destination.");
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
 }
