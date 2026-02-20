@@ -13,6 +13,7 @@ MCP (Model Context Protocol) server for [ISPConfig 3](https://www.ispconfig.org/
 - **Client Management** — create/update/delete ISPConfig clients
 - **Server Info** — query server details by ID or IP
 - **Generic API Call** — escape hatch for any of the ~246 ISPConfig API methods
+- **Server Migration** — export/import DNS zones, mail domains, websites, databases between ISPConfig instances
 
 ## Prerequisites
 
@@ -150,6 +151,75 @@ Add to your MCP config file:
 | `server_get_by_ip` | Find server by IP |
 | `api_call` | Call any ISPConfig API method directly |
 
+### Migration
+
+| Tool | Description |
+|------|-------------|
+| `migrate_plan` | Inventory all DNS/mail/sites on source — dry run, no changes |
+| `migrate_export_dns_zone` | Export a DNS zone + all records as JSON bundle |
+| `migrate_export_mail_domain` | Export a mail domain + mailboxes/aliases/forwards as JSON |
+| `migrate_export_web_domain` | Export a website + FTP/shell users/databases/cron as JSON |
+| `migrate_export_client` | Export a client account + associated domains as JSON |
+| `migrate_import_dns_zone` | Import a DNS zone bundle into destination instance |
+| `migrate_import_mail_domain` | Import a mail domain bundle (config only — rsync maildir separately) |
+| `migrate_import_web_domain` | Import a website bundle (config only — rsync files separately) |
+| `migrate_data_commands` | Generate rsync/mysqldump commands for actual data transfer |
+
+## Migration Between Servers
+
+The MCP supports migrating accounts between ISPConfig instances. The workflow:
+
+1. **Plan** — `migrate_plan` inventories everything on the source
+2. **Export** — `migrate_export_*` dumps config as portable JSON bundles
+3. **Import** — `migrate_import_*` recreates config on the destination
+4. **Data** — `migrate_data_commands` generates rsync/mysqldump commands for actual files/mail/databases
+
+### Migration Config
+
+For direct source→destination migration, configure both instances:
+
+```json
+{
+  "mcpServers": {
+    "ispconfig": {
+      "command": "npx",
+      "args": ["-y", "ispconfig-mcp"],
+      "env": {
+        "ISPCONFIG_URL": "https://old-server:8080",
+        "ISPCONFIG_USER": "api_user",
+        "ISPCONFIG_PASSWORD": "password",
+        "ISPCONFIG_DEST_URL": "https://new-server:8080",
+        "ISPCONFIG_DEST_USER": "api_user",
+        "ISPCONFIG_DEST_PASSWORD": "password",
+        "ISPCONFIG_INSECURE": "true"
+      }
+    }
+  }
+}
+```
+
+Without `ISPCONFIG_DEST_URL`, export tools still work — you can save the JSON and import later.
+
+### What gets migrated (config)
+
+- DNS zones + all record types
+- Mail domains + mailboxes + aliases + forwards + catchall
+- Web domains + subdomains + alias domains
+- FTP and shell users
+- Database definitions
+- Cron jobs
+- Client accounts
+
+### What needs manual transfer (data)
+
+The ISPConfig API manages configuration, not file data. These must be transferred separately:
+
+- **Mail spools** — `rsync /var/vmail/domain/`
+- **Website files** — `rsync /var/www/domain/`
+- **Database content** — `mysqldump` / `pg_dump`
+
+The `migrate_data_commands` tool generates the exact commands needed.
+
 ## Example Prompts
 
 Once connected, you can ask your AI assistant things like:
@@ -161,6 +231,9 @@ Once connected, you can ask your AI assistant things like:
 - "Show me all websites and their domains"
 - "Create a cron job that runs /usr/local/bin/backup.sh every night at 2am"
 - "Find all zones missing SPF records"
+- "Export everything from the old server and show me a migration plan"
+- "Migrate the DNS zone for example.com to the new server"
+- "What rsync commands do I need to transfer mail data for example.com?"
 
 ## Development
 
@@ -173,4 +246,4 @@ npm run build
 
 ## License
 
-MIT
+BSD 3-Clause — same license as [ISPConfig 3](https://git.ispconfig.org/ispconfig/ispconfig3/-/blob/develop/LICENSE).

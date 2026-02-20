@@ -7,6 +7,7 @@ import { registerDnsTools } from "./tools/dns.js";
 import { registerMailTools } from "./tools/mail.js";
 import { registerSitesTools } from "./tools/sites.js";
 import { registerClientTools } from "./tools/client.js";
+import { registerMigrationTools } from "./tools/migration.js";
 
 function getEnvOrThrow(name: string): string {
   const value = process.env[name];
@@ -34,9 +35,20 @@ async function main() {
     insecure,
   });
 
+  // Optional destination instance for migrations
+  let destClient: ISPConfigClient | null = null;
+  if (process.env.ISPCONFIG_DEST_URL) {
+    destClient = new ISPConfigClient({
+      url: process.env.ISPCONFIG_DEST_URL,
+      username: process.env.ISPCONFIG_DEST_USER ?? ispconfigUser,
+      password: process.env.ISPCONFIG_DEST_PASSWORD ?? ispconfigPassword,
+      insecure,
+    });
+  }
+
   const server = new McpServer({
     name: "ispconfig-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   // Register all tool groups
@@ -44,6 +56,7 @@ async function main() {
   registerMailTools(server, client);
   registerSitesTools(server, client);
   registerClientTools(server, client);
+  registerMigrationTools(server, client, destClient);
 
   // Connect via stdio transport
   const transport = new StdioServerTransport();

@@ -1,6 +1,6 @@
 {
   "name": "ispconfig-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP (Model Context Protocol) server for ISPConfig 3 — manage DNS, mail, sites, databases, and more via AI assistants",
   "type": "module",
   "main": "dist/index.js",
@@ -25,7 +25,7 @@
     "ai"
   ],
   "author": "DayZAnder",
-  "license": "MIT",
+  "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
     "url": "https://github.com/DayZAnder/ispconfig-mcp.git"
