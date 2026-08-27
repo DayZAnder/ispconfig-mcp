@@ -8,7 +8,7 @@
  */
 
 export interface ISPConfigOptions {
-  url: string; // e.g. https://smallfoot.xh.se:8080
+  url: string; // e.g. https://ispconfig.example.com:8080
   username: string;
   password: string;
   /** Skip TLS certificate verification (self-signed certs). Default: false */
