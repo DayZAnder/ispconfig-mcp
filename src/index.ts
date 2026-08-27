@@ -23,10 +23,12 @@ async function main() {
   const ispconfigUser = getEnvOrThrow("ISPCONFIG_USER");
   const ispconfigPassword = getEnvOrThrow("ISPCONFIG_PASSWORD");
   const insecure = process.env.ISPCONFIG_INSECURE === "true";
+  // When true, no create/update/delete/import tools are registered at all,
+  // so the model cannot mutate the ISPConfig instance through this server.
+  const readonly = process.env.ISPCONFIG_READONLY === "true";
 
-  if (insecure) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  }
+  // TLS verification is handled per-client inside ISPConfigClient (scoped
+  // dispatcher), never via the process-global NODE_TLS_REJECT_UNAUTHORIZED.
 
   const client = new ISPConfigClient({
     url: ispconfigUrl,
@@ -52,11 +54,16 @@ async function main() {
   });
 
   // Register all tool groups
-  registerDnsTools(server, client);
-  registerMailTools(server, client);
-  registerSitesTools(server, client);
-  registerClientTools(server, client);
-  registerMigrationTools(server, client, destClient);
+  const opts = { readonly };
+  registerDnsTools(server, client, opts);
+  registerMailTools(server, client, opts);
+  registerSitesTools(server, client, opts);
+  registerClientTools(server, client, opts);
+  registerMigrationTools(server, client, destClient, opts);
+
+  if (readonly) {
+    console.error("ispconfig-mcp: running in READ-ONLY mode; write/delete/import tools are disabled.");
+  }
 
   // Connect via stdio transport
   const transport = new StdioServerTransport();

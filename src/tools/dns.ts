@@ -1,13 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ISPConfigClient } from "../ispconfig-client.js";
+import { ToolOptions } from "./types.js";
 
 /** DNS record types supported by ISPConfig */
 const DNS_RECORD_TYPES = [
   "a", "aaaa", "alias", "cname", "hinfo", "mx", "ns", "ptr", "srv", "txt",
 ] as const;
 
-export function registerDnsTools(server: McpServer, client: ISPConfigClient) {
+export function registerDnsTools(server: McpServer, client: ISPConfigClient, opts: ToolOptions) {
   // --- Zones ---
 
   server.tool(
@@ -32,6 +33,22 @@ export function registerDnsTools(server: McpServer, client: ISPConfigClient) {
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    "dns_record_get",
+    "Get a DNS record by type and ID",
+    {
+      type: z.enum(DNS_RECORD_TYPES).describe("Record type (a, aaaa, cname, mx, txt, etc.)"),
+      record_id: z.number().describe("Record ID"),
+    },
+    async ({ type, record_id }) => {
+      const result = await client.call(`dns_${type}_get`, { primary_id: record_id });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // Everything below mutates the instance; skip it entirely in read-only mode.
+  if (opts.readonly) return;
 
   server.tool(
     "dns_zone_add",
@@ -88,19 +105,6 @@ export function registerDnsTools(server: McpServer, client: ISPConfigClient) {
   );
 
   // --- Records (generic for all record types) ---
-
-  server.tool(
-    "dns_record_get",
-    "Get a DNS record by type and ID",
-    {
-      type: z.enum(DNS_RECORD_TYPES).describe("Record type (a, aaaa, cname, mx, txt, etc.)"),
-      record_id: z.number().describe("Record ID"),
-    },
-    async ({ type, record_id }) => {
-      const result = await client.call(`dns_${type}_get`, { primary_id: record_id });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    },
-  );
 
   server.tool(
     "dns_record_add",
