@@ -1,8 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ISPConfigClient } from "../ispconfig-client.js";
+import { ToolOptions } from "./types.js";
 
-export function registerMailTools(server: McpServer, client: ISPConfigClient) {
+export function registerMailTools(server: McpServer, client: ISPConfigClient, opts: ToolOptions) {
   // --- Mail Domains ---
 
   server.tool(
@@ -10,10 +11,8 @@ export function registerMailTools(server: McpServer, client: ISPConfigClient) {
     "List all mail domains",
     {},
     async () => {
-      const result = await client.call("mail_domain_get_by_user", {
-        client_id: 0,
-        server_id: 0,
-      });
+      // ISPConfig has no mail_domain_get_by_user; primary_id = -1 returns all rows.
+      const result = await client.call("mail_domain_get", { primary_id: -1 });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -27,6 +26,19 @@ export function registerMailTools(server: McpServer, client: ISPConfigClient) {
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    "mail_user_get",
+    "Get a mail user/mailbox by ID",
+    { user_id: z.number().describe("Mail user ID") },
+    async ({ user_id }) => {
+      const result = await client.call("mail_user_get", { primary_id: user_id });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // Everything below mutates the instance; skip it entirely in read-only mode.
+  if (opts.readonly) return;
 
   server.tool(
     "mail_domain_add",
@@ -52,16 +64,6 @@ export function registerMailTools(server: McpServer, client: ISPConfigClient) {
   );
 
   // --- Mail Users (Mailboxes) ---
-
-  server.tool(
-    "mail_user_get",
-    "Get a mail user/mailbox by ID",
-    { user_id: z.number().describe("Mail user ID") },
-    async ({ user_id }) => {
-      const result = await client.call("mail_user_get", { primary_id: user_id });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    },
-  );
 
   server.tool(
     "mail_user_add",

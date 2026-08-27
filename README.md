@@ -45,8 +45,12 @@ Then set environment variables in your shell or `.env`:
 export ISPCONFIG_URL="https://your-server:8080"
 export ISPCONFIG_USER="api_user"
 export ISPCONFIG_PASSWORD="your_password"
-# Optional: skip TLS verification for self-signed certs
-export ISPCONFIG_INSECURE="true"
+# Optional: run without any create/update/delete/import tools
+export ISPCONFIG_READONLY="true"
+# Optional (NOT recommended): skip TLS verification for self-signed certs.
+# Only affects this server's own connection, but you should use a valid
+# certificate instead — credentials are sent over this connection.
+# export ISPCONFIG_INSECURE="true"
 ```
 
 ### Claude Desktop / Cursor / Windsurf
@@ -62,8 +66,7 @@ Add to your MCP config file:
       "env": {
         "ISPCONFIG_URL": "https://your-server:8080",
         "ISPCONFIG_USER": "api_user",
-        "ISPCONFIG_PASSWORD": "your_password",
-        "ISPCONFIG_INSECURE": "true"
+        "ISPCONFIG_PASSWORD": "your_password"
       }
     }
   }
@@ -74,7 +77,10 @@ Add to your MCP config file:
 
 1. Log into ISPConfig panel → **System** → **Remote Users**
 2. Create a new remote user with API access
-3. Select the functions you want to allow (or grant all)
+3. Grant **only** the functions this integration needs — do not grant all.
+   The `api_call` escape hatch and the write tools can only reach methods this
+   remote user is permitted to use, so a narrow permission set is your main
+   guardrail. Combine with `ISPCONFIG_READONLY=true` for read-only use.
 4. Use these credentials as `ISPCONFIG_USER` / `ISPCONFIG_PASSWORD`
 
 ## Available Tools
@@ -190,8 +196,7 @@ For direct source→destination migration, configure both instances:
         "ISPCONFIG_PASSWORD": "password",
         "ISPCONFIG_DEST_URL": "https://new-server:8080",
         "ISPCONFIG_DEST_USER": "api_user",
-        "ISPCONFIG_DEST_PASSWORD": "password",
-        "ISPCONFIG_INSECURE": "true"
+        "ISPCONFIG_DEST_PASSWORD": "password"
       }
     }
   }

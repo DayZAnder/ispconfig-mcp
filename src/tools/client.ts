@@ -1,8 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ISPConfigClient } from "../ispconfig-client.js";
+import { ToolOptions } from "./types.js";
 
-export function registerClientTools(server: McpServer, client: ISPConfigClient) {
+export function registerClientTools(server: McpServer, client: ISPConfigClient, opts: ToolOptions) {
+  // ── Read tools ────────────────────────────────────────────────
+
   server.tool(
     "client_get",
     "Get client details by ID",
@@ -12,6 +15,33 @@ export function registerClientTools(server: McpServer, client: ISPConfigClient) 
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    "server_get",
+    "Get server information",
+    {
+      server_id: z.number().describe("Server ID"),
+      section: z.string().default("").describe("Config section (empty for all)"),
+    },
+    async ({ server_id, section }) => {
+      const result = await client.call("server_get", { server_id, section });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    "server_get_by_ip",
+    "Find server by IP address",
+    { ip: z.string().describe("IP address") },
+    async ({ ip }) => {
+      const result = await client.call("server_get_serverid_by_ip", { ipaddress: ip });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // Everything below can mutate the instance; skip it entirely in read-only
+  // mode. api_call is included because it can invoke any write method.
+  if (opts.readonly) return;
 
   server.tool(
     "client_add",
@@ -54,36 +84,11 @@ export function registerClientTools(server: McpServer, client: ISPConfigClient) 
     },
   );
 
-  // --- Server ---
-
-  server.tool(
-    "server_get",
-    "Get server information",
-    {
-      server_id: z.number().describe("Server ID"),
-      section: z.string().default("").describe("Config section (empty for all)"),
-    },
-    async ({ server_id, section }) => {
-      const result = await client.call("server_get", { server_id, section });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    "server_get_by_ip",
-    "Find server by IP address",
-    { ip: z.string().describe("IP address") },
-    async ({ ip }) => {
-      const result = await client.call("server_get_serverid_by_ip", { ipaddress: ip });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
   // --- Generic API call (escape hatch) ---
 
   server.tool(
     "api_call",
-    "Call any ISPConfig API method directly (escape hatch for methods not covered by other tools)",
+    "Call any ISPConfig API method directly (escape hatch for methods not covered by other tools). NOTE: can invoke destructive operations; disabled when ISPCONFIG_READONLY=true.",
     {
       method: z.string().describe("API method name (e.g. 'mail_fetchmail_add')"),
       params: z.record(z.string(), z.unknown()).default({}).describe("Method parameters"),

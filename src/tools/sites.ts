@@ -1,19 +1,20 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ISPConfigClient } from "../ispconfig-client.js";
+import { ToolOptions } from "./types.js";
 
-export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
-  // --- Web Domains ---
+export function registerSitesTools(server: McpServer, client: ISPConfigClient, opts: ToolOptions) {
+  // ── Read tools ────────────────────────────────────────────────
+  // ISPConfig's *_get methods return all rows when the primary id is -1.
+  // The id key must match the method's parameter name (e.g. sites_cron_get
+  // takes `cron_id`, not `primary_id`).
 
   server.tool(
     "web_domain_list",
     "List all web domains/sites",
     {},
     async () => {
-      const result = await client.call("sites_web_domain_get", {
-        client_id: 0,
-        server_id: 0,
-      });
+      const result = await client.call("sites_web_domain_get", { primary_id: -1 });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -27,6 +28,42 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    "ftp_user_list",
+    "List FTP users",
+    {},
+    async () => {
+      const result = await client.call("sites_ftp_user_get", { primary_id: -1 });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    "database_list",
+    "List all databases",
+    {},
+    async () => {
+      const result = await client.call("sites_database_get", { primary_id: -1 });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    "cron_list",
+    "List all cron jobs",
+    {},
+    async () => {
+      // sites_cron_get's parameter is named `cron_id`, not `primary_id`.
+      const result = await client.call("sites_cron_get", { cron_id: -1 });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // Everything below mutates the instance; skip it entirely in read-only mode.
+  if (opts.readonly) return;
+
+  // ── Web domains ───────────────────────────────────────────────
 
   server.tool(
     "web_domain_add",
@@ -69,7 +106,7 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     },
   );
 
-  // --- Subdomains ---
+  // ── Subdomains ────────────────────────────────────────────────
 
   server.tool(
     "web_subdomain_add",
@@ -94,7 +131,7 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     },
   );
 
-  // --- Alias Domains ---
+  // ── Alias domains ─────────────────────────────────────────────
 
   server.tool(
     "web_aliasdomain_add",
@@ -109,20 +146,7 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     },
   );
 
-  // --- FTP Users ---
-
-  server.tool(
-    "ftp_user_list",
-    "List FTP users",
-    {},
-    async () => {
-      const result = await client.call("sites_ftp_user_get", {
-        client_id: 0,
-        server_id: 0,
-      });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    },
-  );
+  // ── FTP users ─────────────────────────────────────────────────
 
   server.tool(
     "ftp_user_add",
@@ -165,7 +189,7 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     },
   );
 
-  // --- Shell Users ---
+  // ── Shell users ───────────────────────────────────────────────
 
   server.tool(
     "shell_user_add",
@@ -190,20 +214,7 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     },
   );
 
-  // --- Databases ---
-
-  server.tool(
-    "database_list",
-    "List all databases",
-    {},
-    async () => {
-      const result = await client.call("sites_database_get", {
-        client_id: 0,
-        server_id: 0,
-      });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    },
-  );
+  // ── Databases ─────────────────────────────────────────────────
 
   server.tool(
     "database_add",
@@ -228,20 +239,8 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     },
   );
 
-  // --- Cron Jobs ---
-
-  server.tool(
-    "cron_list",
-    "List all cron jobs",
-    {},
-    async () => {
-      const result = await client.call("sites_cron_get", {
-        client_id: 0,
-        server_id: 0,
-      });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    },
-  );
+  // ── Cron jobs ─────────────────────────────────────────────────
+  // sites_cron_update/delete take `cron_id`, not `primary_id`.
 
   server.tool(
     "cron_add",
@@ -267,7 +266,7 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     async ({ client_id, cron_id, params }) => {
       const result = await client.call("sites_cron_update", {
         client_id,
-        primary_id: cron_id,
+        cron_id,
         params,
       });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
@@ -279,7 +278,7 @@ export function registerSitesTools(server: McpServer, client: ISPConfigClient) {
     "Delete a cron job",
     { cron_id: z.number().describe("Cron job ID") },
     async ({ cron_id }) => {
-      const result = await client.call("sites_cron_delete", { primary_id: cron_id });
+      const result = await client.call("sites_cron_delete", { cron_id });
       return { content: [{ type: "text", text: `Cron job deleted: ${JSON.stringify(result)}` }] };
     },
   );
